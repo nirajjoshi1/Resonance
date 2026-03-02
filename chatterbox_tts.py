@@ -22,16 +22,7 @@ import modal
 #   --output output.wav
 
 # Supabase S3 storage config
-SUPABASE_BUCKET_NAME = os.environ.get("SUPABASE_STORAGE_BUCKET", "")
-SUPABASE_S3_ENDPOINT = os.environ.get("SUPABASE_STORAGE_S3_ENDPOINT", "")
-SUPABASE_S3_REGION = os.environ.get("SUPABASE_STORAGE_REGION", "ap-northeast-2")
 SUPABASE_S3_SECRET_NAME = os.environ.get("SUPABASE_MODAL_STORAGE_SECRET_NAME", "supabase-s3")
-
-if not SUPABASE_BUCKET_NAME:
-    raise RuntimeError("SUPABASE_STORAGE_BUCKET is required")
-
-if not SUPABASE_S3_ENDPOINT:
-    raise RuntimeError("SUPABASE_STORAGE_S3_ENDPOINT is required")
 
 # Modal setup
 image = modal.Image.debian_slim(python_version="3.10").uv_pip_install(
@@ -98,11 +89,20 @@ with image.imports():
 class Chatterbox:
     @modal.enter()
     def load_model(self):
+        self.bucket_name = os.environ.get("SUPABASE_STORAGE_BUCKET", "")
+        self.s3_endpoint = os.environ.get("SUPABASE_STORAGE_S3_ENDPOINT", "")
+        self.s3_region = os.environ.get("SUPABASE_STORAGE_REGION", "ap-northeast-2")
+
+        if not self.bucket_name:
+            raise RuntimeError("SUPABASE_STORAGE_BUCKET is required")
+        if not self.s3_endpoint:
+            raise RuntimeError("SUPABASE_STORAGE_S3_ENDPOINT is required")
+
         self.model = ChatterboxTurboTTS.from_pretrained(device="cuda")
         self.s3_client = boto3.client(
             "s3",
-            endpoint_url=SUPABASE_S3_ENDPOINT,
-            region_name=SUPABASE_S3_REGION,
+            endpoint_url=self.s3_endpoint,
+            region_name=self.s3_region,
             config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
         )
 
@@ -113,7 +113,7 @@ class Chatterbox:
         tmp_path = tmp.name
         tmp.close()
         try:
-            self.s3_client.download_file(SUPABASE_BUCKET_NAME, voice_key, tmp_path)
+            self.s3_client.download_file(self.bucket_name, voice_key, tmp_path)
             return tmp_path
         except Exception:
             try:
@@ -143,11 +143,10 @@ class Chatterbox:
 
         @web_app.post("/generate", responses={200: {"content": {"audio/wav": {}}}})
         def generate_speech(request: TTSRequest):
-            tmp_voice_path = self._download_voice_to_tmp(request.voice_key)
             try:
                 audio_bytes = self.generate.local(
                     request.prompt,
-                    tmp_voice_path,
+                    request.voice_key,
                     request.temperature,
                     request.top_p,
                     request.top_k,
@@ -163,11 +162,6 @@ class Chatterbox:
                     status_code=500,
                     detail=f"Failed to generate audio: {e}",
                 )
-            finally:
-                try:
-                    os.remove(tmp_voice_path)
-                except OSError:
-                    pass
 
         return web_app
 
