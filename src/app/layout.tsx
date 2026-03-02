@@ -15,9 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Resonance",
-  description: "BY JsByte",
+  title: {
+    default: "Resonance",
+    template: "%s | Resonance"
+  },
+  description: "AI-powered text-to-speech and voice cloning platform",
 };
+
 
 export default function RootLayout({
   children,
