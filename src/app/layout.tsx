@@ -21,6 +21,9 @@ export const metadata: Metadata = {
     template: "%s | Resonance"
   },
   description: "AI-powered text-to-speech and voice cloning platform",
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 
