@@ -207,21 +207,29 @@ export const generationsRouter = createTRPCRouter({
         });
       }
 
-      // Ingest usage event to Polar (fire-and-forget, don't block response)
-      polar.events
-        .ingest({
+      // Ingest usage event to Polar for metered billing.
+      // Keep this aligned with the meter filter name configured in Polar.
+      try {
+        await polar.events.ingest({
           events: [
             {
-              name: "tts_generation",
+              name: "tts_generations",
               externalCustomerId: ctx.orgId,
               metadata: { characters: input.text.length },
               timestamp: new Date(),
             },
           ],
-        })
-        .catch(() => {
-          // Silently fail - don't break the user experience for metering errors
         });
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { component: "polar", operation: "events.ingest" },
+          extra: {
+            eventName: "tts_generations",
+            externalCustomerId: ctx.orgId,
+            characters: input.text.length,
+          },
+        });
+      }
 
       return {
         id: generationId,

@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { parseBuffer } from "music-metadata";
 import { z } from "zod";
 import { polar } from "@/lib/polar";
@@ -164,9 +165,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Ingest usage event to Polar (fire-and-forget, don't block response)
-  polar.events
-    .ingest({
+  // Ingest usage event to Polar for metered billing.
+  try {
+    await polar.events.ingest({
       events: [
         {
           name: "voice_creation",
@@ -175,10 +176,16 @@ export async function POST(request: Request) {
           timestamp: new Date(),
         },
       ],
-    })
-    .catch(() => {
-      // Silently fail - don't break the user experience for metering errors
     });
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { component: "polar", operation: "events.ingest" },
+      extra: {
+        eventName: "voice_creation",
+        externalCustomerId: orgId,
+      },
+    });
+  }
 
   return Response.json(
     { name, message: "Voice created successfully" },
