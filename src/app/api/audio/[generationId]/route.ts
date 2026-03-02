@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { getSignedAudioUrl } from "@/lib/r2";
+import { getSignedAudioUrl } from "@/lib/supabase-storage";
 
 export async function GET(
   _request: Request,

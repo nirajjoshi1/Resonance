@@ -1,18 +1,19 @@
 import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "./env";
 
-const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+const storageClient = new S3Client({
+  region: env.SUPABASE_STORAGE_REGION,
+  endpoint: env.SUPABASE_STORAGE_S3_ENDPOINT,
+  forcePathStyle: true,
   credentials: {
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    accessKeyId: env.SUPABASE_STORAGE_ACCESS_KEY_ID,
+    secretAccessKey: env.SUPABASE_STORAGE_SECRET_ACCESS_KEY,
   },
 });
 
@@ -27,29 +28,29 @@ export async function uploadAudio({
   key,
   contentType = "audio/wav",
 }: UploadAudioOptions): Promise<void> {
-  await r2.send(
+  await storageClient.send(
     new PutObjectCommand({
-      Bucket: env.R2_BUCKET_NAME,
+      Bucket: env.SUPABASE_STORAGE_BUCKET,
       Key: key,
       Body: buffer,
       ContentType: contentType,
     }),
   );
-};
+}
 
 export async function deleteAudio(key: string): Promise<void> {
-  await r2.send(
+  await storageClient.send(
     new DeleteObjectCommand({
-      Bucket: env.R2_BUCKET_NAME,
+      Bucket: env.SUPABASE_STORAGE_BUCKET,
       Key: key,
     }),
   );
-};
+}
 
 export async function getSignedAudioUrl(key: string): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: env.R2_BUCKET_NAME,
+    Bucket: env.SUPABASE_STORAGE_BUCKET,
     Key: key,
   });
-  return getSignedUrl(r2, command, { expiresIn: 3600 }); // 1 hour
-};
+  return getSignedUrl(storageClient, command, { expiresIn: 3600 });
+}
